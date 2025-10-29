@@ -9,34 +9,48 @@ TOKEN_URL = os.getenv("TOKEN_URL", "https://<your-token-endpoint>")
 USERNAME = os.getenv("USERNAME", "<username>")
 PASSWORD = os.getenv("PASSWORD", "<password>")
 
-st.title("AI StreamSets Pipeline Processor (Enterprise Edition)")
+# Backend-only chunk size. Change as needed:
+CHUNK_SIZE = 1024 * 1024  # 1MB
+
+st.markdown(
+    """
+    <h1 style='text-align: left; color:#6B46C1; font-size: 2.4rem;'>⚙️ StreamSets Pipeline Assistant</h1>
+    """,
+    unsafe_allow_html=True
+)
 st.markdown("""
-- Handles large JSON pipelines using chunking.
-- Enter your instructions in plain English (e.g., "upgrade Kafka driver to 3.5.1").
-- Shows progress in real time.
-""")
+This assistant helps you <b>upgrade, replace, or modify StreamSets components</b> using LLM intelligence.<br>
+You can provide input in any of these forms:
+<ul>
+<li>Upload a <b>.zip</b> containing multiple pipeline JSONs</li>
+<li>Upload a <b>.json</b> file</li>
+<li>Paste raw JSON directly</li>
+</ul>
+""", unsafe_allow_html=True)
 
-chunk_size = st.slider("Chunk Size (KB)", min_value=256, max_value=2048, value=1024) * 1024
+st.markdown("### Input pipeline format:")
+input_mode = st.radio("", ["Upload ZIP", "Upload JSON", "Paste JSON"])
 
-user_instruction = st.text_input(
-    "What do you want to do with this pipeline?",
-    placeholder="E.g. upgrade Kafka driver to 3.5.1 and replace deprecated processors")
-
-input_mode = st.radio("Input pipeline format:", ["Upload JSON", "Upload ZIP", "Paste JSON"])
 json_data = None
 
-if input_mode == "Upload JSON":
-    pipeline_file = st.file_uploader("Upload Pipeline JSON", type=["json"])
-    if pipeline_file:
-        json_data = pipeline_file.read().decode()
-elif input_mode == "Upload ZIP":
-    zip_file = st.file_uploader("Upload Pipeline ZIP", type=["zip"])
+if input_mode == "Upload ZIP":
+    zip_file = st.file_uploader("Upload Pipeline ZIP", type=["zip"], help="Limit 200MB per file - ZIP")
     if zip_file:
         json_data = extract_json_from_zip(zip_file.read())
         if json_data is None:
             st.warning("No JSON found in ZIP.")
+elif input_mode == "Upload JSON":
+    pipeline_file = st.file_uploader("Upload Pipeline JSON", type=["json"])
+    if pipeline_file:
+        json_data = pipeline_file.read().decode()
 elif input_mode == "Paste JSON":
-    json_data = st.text_area("Paste Pipeline JSON Here")
+    json_data = st.text_area("Paste raw JSON directly", height=200)
+
+user_instruction = st.text_area(
+    "📝 Describe what to do:",
+    placeholder="E.g. upgrade Kafka driver to 3.5.1 and replace deprecated processors",
+    height=70
+)
 
 if json_data and user_instruction and st.button("Process Pipeline (Chunked)"):
     progress_bar = st.progress(0)
@@ -50,7 +64,7 @@ if json_data and user_instruction and st.button("Process Pipeline (Chunked)"):
     try:
         status_text.info("Starting processing...")
         result = process_pipeline_json_in_chunks(
-            json_data, chunk_size, user_instruction,
+            json_data, CHUNK_SIZE, user_instruction,
             TOKEN_URL, USERNAME, PASSWORD, MODEL_ENDPOINT,
             progress_callback
         )

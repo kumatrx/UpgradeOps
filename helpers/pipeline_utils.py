@@ -2,6 +2,7 @@ import requests
 import base64
 import zipfile
 import io
+import time
 
 def get_jwt(token_url, username, password):
     credentials = base64.b64encode(f"{username}:{password}".encode()).decode()
@@ -12,7 +13,7 @@ def get_jwt(token_url, username, password):
     else:
         raise Exception(f"JWT failure: {response.text}")
 
-def call_llm(prompt, token_url, username, password, model_endpoint):
+def call_llm(prompt, token_url, username, password, model_endpoint, max_retries=5, base_delay=2):
     token = get_jwt(token_url, username, password)
     config = {"maxTokens": 1000, "temperature": 0.5}
     payload = {
@@ -20,10 +21,19 @@ def call_llm(prompt, token_url, username, password, model_endpoint):
         "inferenceConfig": config
     }
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
-    resp = requests.post(model_endpoint, json=payload, headers=headers, timeout=120)
-    resp.raise_for_status()
-    result = resp.json()
-    return result['output']['message'][0]['text']
+
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(model_endpoint, json=payload, headers=headers, timeout=120)
+            resp.raise_for_status()
+            result = resp.json()
+            return result['output']['message'][0]['text']
+        except requests.exceptions.HTTPError as e:
+            if resp.status_code == 429 and attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)
+                time.sleep(delay)
+            else:
+                raise
 
 def chunk_text(text, chunk_size):
     return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]

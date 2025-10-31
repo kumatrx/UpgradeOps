@@ -1,0 +1,79 @@
+import streamlit as st
+
+# Dummy backend data
+environment_types = ["Cloud", "On Prem"]
+environment_stages = ["SIT", "NFT", "PROD"]
+jobs = {
+    "Cloud": {
+        "SIT": {"job": ["JobA_C_SIT", "JobB_C_SIT"], "pipeline": ["PipeA_C_SIT", "PipeB_C_SIT"]},
+        "NFT": {"job": ["JobA_C_NFT"], "pipeline": ["PipeA_C_NFT", "PipeB_C_NFT"]},
+        "PROD": {"job": ["JobA_C_PROD"], "pipeline": ["PipeA_C_PROD"]}
+    },
+    "On Prem": {
+        "SIT": {"job": ["JobA_OP_SIT"], "pipeline": ["PipeA_OP_SIT"]},
+        "NFT": {"job": ["JobA_OP_NFT"], "pipeline": ["PipeA_OP_NFT"]},
+        "PROD": {"job": ["JobA_OP_PROD"], "pipeline": ["PipeA_OP_PROD"]}
+    }
+}
+
+upgrade_options = ["Driver Upgrade", "Kafka Version Upgrade"]
+
+st.title("StreamSets Pipeline/Job Management")
+
+# Step 1. Purpose Selection
+purpose = st.radio("Choose Purpose", ["Code Changes", "Deployment"])
+
+def user_credentials(env_name):
+    st.text_input(f"{env_name} User ID")
+    st.text_input(f"{env_name} Password", type="password")
+
+if purpose == "Code Changes":
+    # Step 2 Code Changes Workflow
+    env_type = st.selectbox("Select Environment Type", environment_types)
+    env_stage = st.selectbox("Select Environment Stage", environment_stages)
+    job_or_pipeline = st.radio("Choose Type", ["Job", "Pipeline"])
+    
+    # Show available jobs/pipelines for env
+    available = jobs[env_type][env_stage][job_or_pipeline.lower()]
+    selected = st.multiselect(f"Select {job_or_pipeline}s from {env_type} - {env_stage}", available)
+    
+    # Show upgrade/change options
+    changes = st.multiselect("Select Changes to Apply", upgrade_options)
+    
+    user_credentials(f"{env_type} {env_stage}")
+
+    if st.button("Apply Changes"):
+        st.success(f"Applying {changes} on {selected} in {env_type} {env_stage}")
+
+else:
+    # Step 2 Deployment Workflow
+    env_type = st.selectbox("Select Source Environment Type", environment_types)
+    source_stage = st.selectbox("Select Source Environment Stage", environment_stages)
+    target_stage = st.selectbox("Select Target Deployment Stage", [s for s in environment_stages if s != source_stage])
+    job_or_pipeline = st.radio("Choose Type", ["Job", "Pipeline"])
+
+    # Left side: available in source environment
+    source_available = jobs[env_type][source_stage][job_or_pipeline.lower()]
+    target_available = jobs[env_type][target_stage][job_or_pipeline.lower()]
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"Available {job_or_pipeline}s in {env_type} {source_stage}")
+        selected_source = st.multiselect("Select to Deploy", source_available)
+    with col2:
+        st.write(f"{job_or_pipeline}s in {env_type} {target_stage}")
+        selected_target = st.multiselect("Selected for Deployment", target_available)
+
+    # Simulate moving jobs from left to right (simple for demo)
+    # Real app can have buttons to move selections in UI
+
+    st.subheader("User Credentials")
+    st.write("Source Credentials")
+    user_credentials(f"{env_type} {source_stage}")
+    st.write("Target Credentials")
+    user_credentials(f"{env_type} {target_stage}")
+
+    if st.button("Deploy Selected"):
+        st.success(f"Deploying {selected_source} from {source_stage} to {target_stage} in {env_type}")
+
+st.write("Note: This is a demo UI with dummy data and placeholders.")
